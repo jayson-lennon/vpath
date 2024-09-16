@@ -115,9 +115,7 @@ impl TryFrom<&str> for Filename {
 
     /// # Errors
     ///
-    /// An `Err` will be returned if the filename is anything other than a single name (possibly
-    /// containing an extension). Absolute paths and paths containing a parent directory will return an
-    /// error.
+    /// An `Err` will be returned if the filename is empty or has a root.
     fn try_from(path: &str) -> Result<Self, Self::Error> {
         if path.is_empty() {
             return Err(FilenameError::Empty);
@@ -137,19 +135,9 @@ impl TryFrom<PathBuf> for Filename {
 
     /// # Errors
     ///
-    /// An `Err` will be returned if the filename is anything other than a single name (possibly
-    /// containing an extension). Absolute paths and paths containing a parent directory will return an
-    /// error.
+    /// An `Err` will be returned if the filename is empty or has a root.
     fn try_from(path: PathBuf) -> Result<Self, Self::Error> {
-        if path.components().next().is_none() {
-            return Err(FilenameError::Empty);
-        }
-
-        if path.is_absolute() {
-            return Err(FilenameError::HasRoot);
-        }
-
-        Ok(Filename { name: path })
+        Self::try_from(&path)
     }
 }
 
@@ -158,21 +146,9 @@ impl TryFrom<&PathBuf> for Filename {
 
     /// # Errors
     ///
-    /// An `Err` will be returned if the filename is anything other than a single name (possibly
-    /// containing an extension). Absolute paths and paths containing a parent directory will return an
-    /// error.
+    /// An `Err` will be returned if the filename is empty or has a root.
     fn try_from(path: &PathBuf) -> Result<Self, Self::Error> {
-        if path.components().next().is_none() {
-            return Err(FilenameError::Empty);
-        }
-
-        if path.is_absolute() {
-            return Err(FilenameError::HasRoot);
-        }
-
-        Ok(Filename {
-            name: path.to_path_buf(),
-        })
+        Self::try_from(path.as_path())
     }
 }
 
@@ -181,9 +157,7 @@ impl TryFrom<&Path> for Filename {
 
     /// # Errors
     ///
-    /// An `Err` will be returned if the filename is anything other than a single name (possibly
-    /// containing an extension). Absolute paths and paths containing a parent directory will return an
-    /// error.
+    /// An `Err` will be returned if the filename is empty or has a root.
     fn try_from(path: &Path) -> Result<Self, Self::Error> {
         if path.components().next().is_none() {
             return Err(FilenameError::Empty);
@@ -240,9 +214,47 @@ impl TryFrom<&str> for Dirname {
         }
 
         let path = PathBuf::from(path);
+        Self::try_from(path)
+    }
+}
+
+impl TryFrom<PathBuf> for Dirname {
+    type Error = DirnameError;
+
+    /// # Errors
+    ///
+    /// An `Err` will be returned if the dirname is an absolute path or if no path was provided.
+    fn try_from(path: PathBuf) -> Result<Self, Self::Error> {
+        Self::try_from(&path)
+    }
+}
+
+impl TryFrom<&PathBuf> for Dirname {
+    type Error = DirnameError;
+
+    /// # Errors
+    ///
+    /// An `Err` will be returned if the dirname is an absolute path or if no path was provided.
+    fn try_from(path: &PathBuf) -> Result<Self, Self::Error> {
+        Self::try_from(path.as_path())
+    }
+}
+
+impl TryFrom<&Path> for Dirname {
+    type Error = DirnameError;
+
+    /// # Errors
+    ///
+    /// An `Err` will be returned if the dirname is an absolute path or if no path was provided.
+    fn try_from(path: &Path) -> Result<Self, Self::Error> {
+        if path.components().next().is_none() {
+            return Err(DirnameError::Empty);
+        }
 
         (!path.is_absolute())
-            .then_some(Dirname { name: path })
+            .then_some(Dirname {
+                name: path.to_path_buf(),
+            })
             .ok_or(DirnameError::Absolute)
     }
 }
@@ -279,9 +291,7 @@ impl TryFrom<&str> for AbsolutePath {
     /// An `Err` will be returned if the path is not absolute.
     fn try_from(path: &str) -> Result<Self, Self::Error> {
         let path = PathBuf::from(path);
-        path.is_absolute()
-            .then_some(Self(path))
-            .ok_or(AbsolutePathError)
+        Self::try_from(path)
     }
 }
 
@@ -292,9 +302,7 @@ impl TryFrom<PathBuf> for AbsolutePath {
     ///
     /// An `Err` will be returned if the path is not absolute.
     fn try_from(path: PathBuf) -> Result<Self, Self::Error> {
-        path.is_absolute()
-            .then_some(Self(path))
-            .ok_or(AbsolutePathError)
+        Self::try_from(&path)
     }
 }
 
@@ -305,9 +313,7 @@ impl TryFrom<&PathBuf> for AbsolutePath {
     ///
     /// An `Err` will be returned if the path is not absolute.
     fn try_from(path: &PathBuf) -> Result<Self, Self::Error> {
-        path.is_absolute()
-            .then_some(Self(path.to_path_buf()))
-            .ok_or(AbsolutePathError)
+        Self::try_from(path.as_path())
     }
 }
 
