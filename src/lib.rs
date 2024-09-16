@@ -330,6 +330,12 @@ impl TryFrom<&Path> for AbsolutePath {
     }
 }
 
+impl AsRef<Path> for AbsolutePath {
+    fn as_ref(&self) -> &Path {
+        self.0.as_path()
+    }
+}
+
 /// Generates paths with a "base" that can be switched.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VirtualPath<M> {
@@ -386,9 +392,9 @@ impl<M> VirtualPath<M> {
     /// impacted.
     pub fn strip_prefix<P>(self, prefix: P) -> Result<Self, StripPrefixError>
     where
-        P: AsRef<Path>,
+        P: Into<PathBuf>,
     {
-        let stripped = self.path.strip_prefix(prefix)?;
+        let stripped = self.path.strip_prefix(prefix.into())?;
         Ok(Self {
             base: self.base,
             path: stripped.to_path_buf(),
