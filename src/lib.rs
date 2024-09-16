@@ -415,6 +415,13 @@ impl<M> VirtualPath<M> {
             _phantom: PhantomData,
         })
     }
+
+    // Returns the path without its final component, if there is one.
+    pub fn parent(&self) -> Option<PathBuf> {
+        self.to_path_buf()
+            .parent()
+            .map(|parent| parent.to_path_buf())
+    }
 }
 
 impl VirtualPath<DirMarker> {
