@@ -336,6 +336,13 @@ impl AsRef<Path> for AbsolutePath {
     }
 }
 
+#[allow(clippy::from_over_into)]
+impl Into<PathBuf> for AbsolutePath {
+    fn into(self) -> PathBuf {
+        self.0.clone()
+    }
+}
+
 /// Generates paths with a "base" that can be switched.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VirtualPath<M> {
