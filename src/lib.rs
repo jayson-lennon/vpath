@@ -1,8 +1,22 @@
+// Copyright 2024 Jayson Lennon
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//!
 //! # Basic Usage
 //!
 //! ```
 //! # use std::path::PathBuf;
-//! use pathmarker::{AbsolutePath, Dirname, Filename, VirtualPath};
+//! use vpath::{AbsolutePath, Dirname, Filename, VirtualPath};
 //!
 //! // Create a new virtual path
 //! let mut path = VirtualPath::default();
@@ -44,7 +58,7 @@
 //! prevent problems with pushing directories after you've already composed a file path.
 //!
 //! ```
-//! use pathmarker::{VirtualPath, DirMarker, FileMarker};
+//! use vpath::{VirtualPath, DirMarker, FileMarker};
 //!
 //! // Default starts with a directory.
 //! let path: VirtualPath<DirMarker> = VirtualPath::default();
@@ -81,8 +95,6 @@ pub struct Filename {
 pub enum FilenameError {
     /// The filename was empty
     Empty,
-    /// The filename contained a parent directory
-    HasParent,
     /// The filename was absolute
     HasRoot,
 }
@@ -91,11 +103,12 @@ impl std::fmt::Display for FilenameError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Empty => write!(f, "filename cannot be empty"),
-            Self::HasParent => write!(f, "filename cannot contain a directory"),
             Self::HasRoot => write!(f, "filename cannot be absolute"),
         }
     }
 }
+
+impl std::error::Error for FilenameError {}
 
 impl TryFrom<&str> for Filename {
     type Error = FilenameError;
@@ -115,11 +128,74 @@ impl TryFrom<&str> for Filename {
             return Err(FilenameError::HasRoot);
         }
 
-        if path.parent() != Some(Path::new("")) && path.parent().is_some() {
-            return Err(FilenameError::HasParent);
+        Ok(Filename { name: path })
+    }
+}
+
+impl TryFrom<PathBuf> for Filename {
+    type Error = FilenameError;
+
+    /// # Errors
+    ///
+    /// An `Err` will be returned if the filename is anything other than a single name (possibly
+    /// containing an extension). Absolute paths and paths containing a parent directory will return an
+    /// error.
+    fn try_from(path: PathBuf) -> Result<Self, Self::Error> {
+        if path.components().next().is_none() {
+            return Err(FilenameError::Empty);
+        }
+
+        if path.is_absolute() {
+            return Err(FilenameError::HasRoot);
         }
 
         Ok(Filename { name: path })
+    }
+}
+
+impl TryFrom<&PathBuf> for Filename {
+    type Error = FilenameError;
+
+    /// # Errors
+    ///
+    /// An `Err` will be returned if the filename is anything other than a single name (possibly
+    /// containing an extension). Absolute paths and paths containing a parent directory will return an
+    /// error.
+    fn try_from(path: &PathBuf) -> Result<Self, Self::Error> {
+        if path.components().next().is_none() {
+            return Err(FilenameError::Empty);
+        }
+
+        if path.is_absolute() {
+            return Err(FilenameError::HasRoot);
+        }
+
+        Ok(Filename {
+            name: path.to_path_buf(),
+        })
+    }
+}
+
+impl TryFrom<&Path> for Filename {
+    type Error = FilenameError;
+
+    /// # Errors
+    ///
+    /// An `Err` will be returned if the filename is anything other than a single name (possibly
+    /// containing an extension). Absolute paths and paths containing a parent directory will return an
+    /// error.
+    fn try_from(path: &Path) -> Result<Self, Self::Error> {
+        if path.components().next().is_none() {
+            return Err(FilenameError::Empty);
+        }
+
+        if path.is_absolute() {
+            return Err(FilenameError::HasRoot);
+        }
+
+        Ok(Filename {
+            name: path.to_path_buf(),
+        })
     }
 }
 
@@ -149,6 +225,8 @@ impl std::fmt::Display for DirnameError {
         }
     }
 }
+
+impl std::error::Error for DirnameError {}
 
 impl TryFrom<&str> for Dirname {
     type Error = DirnameError;
@@ -190,7 +268,7 @@ impl std::fmt::Display for AbsolutePathError {
 impl std::error::Error for AbsolutePathError {}
 
 /// An absolute path.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct AbsolutePath(PathBuf);
 
 impl TryFrom<&str> for AbsolutePath {
@@ -207,8 +285,47 @@ impl TryFrom<&str> for AbsolutePath {
     }
 }
 
+impl TryFrom<PathBuf> for AbsolutePath {
+    type Error = AbsolutePathError;
+
+    /// # Errors
+    ///
+    /// An `Err` will be returned if the path is not absolute.
+    fn try_from(path: PathBuf) -> Result<Self, Self::Error> {
+        path.is_absolute()
+            .then_some(Self(path))
+            .ok_or(AbsolutePathError)
+    }
+}
+
+impl TryFrom<&PathBuf> for AbsolutePath {
+    type Error = AbsolutePathError;
+
+    /// # Errors
+    ///
+    /// An `Err` will be returned if the path is not absolute.
+    fn try_from(path: &PathBuf) -> Result<Self, Self::Error> {
+        path.is_absolute()
+            .then_some(Self(path.to_path_buf()))
+            .ok_or(AbsolutePathError)
+    }
+}
+
+impl TryFrom<&Path> for AbsolutePath {
+    type Error = AbsolutePathError;
+
+    /// # Errors
+    ///
+    /// An `Err` will be returned if the path is not absolute.
+    fn try_from(path: &Path) -> Result<Self, Self::Error> {
+        path.is_absolute()
+            .then_some(Self(path.to_path_buf()))
+            .ok_or(AbsolutePathError)
+    }
+}
+
 /// Generates paths with a "base" that can be switched.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VirtualPath<M> {
     base: PathBuf,
     path: PathBuf,
@@ -228,10 +345,11 @@ impl<M> VirtualPath<M> {
     }
 
     /// Changes the "base" of this virtual path.
-    pub fn with_base(self, base: &AbsolutePath) -> VirtualPath<M> {
+    #[must_use]
+    pub fn with_base(&self, base: &AbsolutePath) -> VirtualPath<M> {
         VirtualPath {
             base: base.0.clone(),
-            path: self.path,
+            path: self.path.clone(),
             _phantom: PhantomData,
         }
     }
@@ -407,8 +525,8 @@ mod tests {
     }
 
     #[test]
-    fn fail_to_create_filename_containing_parent_dir() {
-        let file = Filename::try_from("dir/file.ext");
+    fn fail_to_create_filename_with_empty_path_from_pathbuf() {
+        let file = Filename::try_from(PathBuf::from(""));
         assert!(file.is_err());
     }
 
@@ -428,6 +546,17 @@ mod tests {
     fn create_absolute_path_is_ok_when_using_path_containing_a_root() {
         let abs = AbsolutePath::try_from("/test");
         assert!(abs.is_ok());
+    }
+
+    #[test]
+    fn pushes_file_with_parent_dir() {
+        let path = VirtualPath::default();
+
+        let file = Filename::try_from("parent/index.html").unwrap();
+
+        let path = path.with_file(file);
+
+        assert_eq!(path.to_path_buf(), PathBuf::from("parent/index.html"));
     }
 
     #[test]
